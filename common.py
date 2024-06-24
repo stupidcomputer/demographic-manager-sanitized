@@ -40,4 +40,5 @@ mapper_data = {
     "ai/an": "American Indian/Alaskan Native",
     "None": "Unknown",
     "nh/opi": "Native Hawaiian/Other Pacific Islander",
+    "i": "Intern",
 }

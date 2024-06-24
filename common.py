@@ -36,5 +36,8 @@ mapper_data = {
     "nh": "Not Hispanic",
     "h": "Hispanic",
     "b/aa": "Black/African American",
+    "unk": "Unknown",
+    "ai/an": "American Indian/Alaskan Native",
+    "None": "Unknown",
+    "nh/opi": "Native Hawaiian/Other Pacific Islander",
 }
-

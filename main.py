@@ -126,13 +126,18 @@ def adjust_column_width(worksheet, times):
 def write_information_to_spreadsheet(totals, worksheet, offset):
     return handle_writing_of_attrs(worksheet, totals, offset)
 
+def plural(arr):
+    if len(arr) > 1:
+        return "s"
+    return ""
+
 def handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads, time, date):
     ws["A1"].value = "Information for {} site attendance at {} on {}".format(ws.title, time, date)
     ws["A2"].value = "Fields not present should be assumed 0."
     ws["A3"].value = "Data submitted by {} in person after conclusion of site operations.".format(generate_provider_string(providers))
     ws["A4"].value = "Interns present: {}".format(generate_provider_string(persons))
-    ws["A5"].value = "Communication Lead(s): {}".format(generate_provider_string(commleads))
-    ws["A6"].value = "On Site Lead(s): {}".format(generate_provider_string(onsiteleads))
+    ws["A5"].value = "Communication Lead{}: {}".format(plural(commleads), generate_provider_string(commleads))
+    ws["A6"].value = "On Site Lead{}: {}".format(plural(onsiteleads), generate_provider_string(onsiteleads))
     ws.merge_cells("A1:E1")
     ws.merge_cells("A2:E2")
     ws.merge_cells("A3:H3")

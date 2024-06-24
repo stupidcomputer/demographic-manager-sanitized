@@ -2,31 +2,9 @@ import curses
 import logging
 import json
 import sys
+import common
 
 # logging.basicConfig(filename="enterer.log", level=logging.DEBUG)
-
-attrtable = {
-#   attr, sel[i]
-    "a": 0,
-    "c": 0,
-    "m": 0,
-    "f": 0,
-    "u/o": 0,
-    "h": 0,
-    "nh": 0,
-    "ai/an": 1,
-    "as": 1,
-    "b/aa": 1,
-    "nh/opi": 3,
-    "wh": 0,
-    "1+": 0,
-    "unk": 2,
-}
-
-age = ["a", "c"]
-gender = ["m", "f", "u/o"]
-ethnicity = ["h", "nh"]
-race = ["ai/an", "as", "b/aa", "nh/opi", "wh", "1+", "unk"]
 
 def serialize_finalsels_to_json(finalsels, filename):
     json_wrapper = {"payload": []}
@@ -35,16 +13,16 @@ def serialize_finalsels_to_json(finalsels, filename):
     for i in finalsels:
         new_json_obj = {"age": None, "gender": None, "ethnicity": None, "race": None}
         for j in i[1]:
-            if j in age:
+            if j in common.age:
                 new_json_obj["age"] = j
 
-            if j in gender:
+            if j in common.gender:
                 new_json_obj["gender"] = j
 
-            if j in ethnicity:
+            if j in common.ethnicity:
                 new_json_obj["ethnicity"] = j
 
-            if j in race:
+            if j in common.race:
                 new_json_obj["race"] = j
 
         for _ in range(i[0]):
@@ -68,7 +46,7 @@ def pad_out_rest_of_line(window):
 def check_if_attr_selected(attr, sel):
 #    logging.debug(attrtable[attr])
 #    logging.debug((attrtable[attr], attr[attrtable[attr]], sel))
-    if attr[attrtable[attr]] == sel:
+    if attr[common.attrtable[attr]] == sel:
         return True
     return False
 
@@ -77,7 +55,7 @@ def equality_sel_check(attr, sel):
 
 def generate_outstring_format_values(sels):
     output = []
-    for i in attrtable.keys(): # will always be sorted, in order
+    for i in common.attrtable.keys(): # will always be sorted, in order
         for j in sels:
             if check_if_attr_selected(i, j):
                 output.append("[{}]".format(i))
@@ -89,7 +67,7 @@ def generate_outstring_format_values(sels):
 
 def convert_sels_arr_to_attrs(sels):
     output = []
-    for i in attrtable.keys(): # will always be sorted, in order
+    for i in common.attrtable.keys(): # will always be sorted, in order
         for j in sels:
 #            logging.debug(str((i, j)))
             if check_if_attr_selected(i, j):
@@ -103,13 +81,13 @@ def get_attr_cata_counts(sels):
     ethnicities = 0
     races = 0
     for i in sels:
-        if i in age:
+        if i in common.age:
             ages += 1
-        if i in gender:
+        if i in common.gender:
             genders += 1
-        if i in ethnicity:
+        if i in common.ethnicity:
             ethnicities += 1
-        if i in race:
+        if i in common.race:
             races += 1
 
     return (ages, genders, ethnicities, races)
@@ -123,27 +101,27 @@ def resolve_sel_conflict(sels):
 
     if ages > 1:
         for i in final:
-            if i in age:
+            if i in common.age:
                 final.remove(i)
 
     if genders > 1:
         for i in final:
-            if i in gender:
+            if i in common.gender:
                 final.remove(i)
 
     if ethnicities > 1:
         for i in final:
-            if i in ethnicity:
+            if i in common.ethnicity:
                 final.remove(i)
 
     if races > 1:
         for i in final:
-            if i in race:
+            if i in common.race:
                 final.remove(i)
 
     finalfinal = []
     for i in final:
-        finalfinal.append(i[attrtable[i]])
+        finalfinal.append(i[common.attrtable[i]])
 
     return finalfinal
 

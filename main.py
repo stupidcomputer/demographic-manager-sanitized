@@ -1,36 +1,26 @@
 import json
+import common
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
-mapper_data = {
-    "age": "Age",
-    "gender": "Gender",
-    "ethnicity": "Ethnicity",
-    "race": "Race",
-    "a": "Adult",
-    "c": "Child",
-    "wh": "White",
-    "as": "Asian",
-    "f": "Female",
-    "m": "Male",
-    "1+": "More than one race",
-    "nh": "Not Hispanic",
-    "h": "Hispanic",
-    "b/aa": "Black/African American",
-}
-
 def mapper(string):
     # map to human-readable values
     try:
-        return mapper_data[string]
+        return common.mapper_data[string]
     except KeyError:
         return "WARNING: {}".format(string)
 
-def aggregate_demographic_totals(payload):
+def aggregate_demographic_totals(payload, adultonly, childonly):
     results = {"age": {}, "gender": {}, "ethnicity": {}, "race": {}}
 
     for i in payload:
+        if adultonly and i["age"] == "c":
+            continue
+
+        if childonly and i["age"] == "a":
+            continue
+
         # for every entry we get
         for key in results.keys():
             # for every field we have
@@ -39,7 +29,7 @@ def aggregate_demographic_totals(payload):
 
     return results
 
-def get_totals_for_specific_attribute_on_specific_site(site):
+def get_totals_for_specific_attribute_on_specific_site(site, adultonly=False, childonly=False):
     manifest = open("data/manifest.json")
     manifest_data = json.loads(manifest.read())
 
@@ -60,7 +50,7 @@ def get_totals_for_specific_attribute_on_specific_site(site):
 
     payload = demographic_data_json["payload"]
 
-    return aggregate_demographic_totals(payload)
+    return aggregate_demographic_totals(payload, adultonly, childonly)
 
 def generate_table_for_attr(attr, totals):
     dataarray = [[mapper(attr), "Count"]]
@@ -87,39 +77,66 @@ def generate_provider_string(providers):
         return before_and + and_string
     return providers[0]
 
-def handle_writing_of_attrs(worksheet, totals, providers):
-    # each set of fields is two long
-    worksheet["A1"].value = "Information for {} site attendance.".format(worksheet.title)
-    worksheet["A2"].value = "Fields not present should be assumed 0."
-    worksheet["A10"].value = "Data submitted by {}.".format(generate_provider_string(providers))
-    worksheet.merge_cells("A1:E1")
-    worksheet.merge_cells("A2:E2")
-    worksheet.merge_cells("A10:E10")
+def handle_writing_of_attrs(worksheet, totals, offset):
     count = 0
+    maxlen = 0
     for i in totals.keys():
         tmp = generate_table_for_attr(i, totals)
+        maxlen = max(maxlen, len(tmp))
 
-        write_dataarray_to_specific_cell(3, count * 3, tmp, worksheet)
+        write_dataarray_to_specific_cell(offset, count * 3, tmp, worksheet)
         count += 1
+
+    return maxlen
 
 def adjust_column_width(worksheet, times):
     for i in range(times):
         worksheet.column_dimensions[get_column_letter((i * 3) + 1)].width = 20
 
-def write_information_to_spreadsheet(totals, worksheet, providers):
-    handle_writing_of_attrs(ws, totals, providers)
-    adjust_column_width(ws, 4)
+def write_information_to_spreadsheet(totals, worksheet, offset):
+    return handle_writing_of_attrs(ws, totals, offset)
+
+def handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads):
+    ws["A1"].value = "Information for {} site attendance.".format(ws.title)
+    ws["A2"].value = "Fields not present should be assumed 0."
+    ws["A3"].value = "Data submitted by {} in person after conclusion of site operations.".format(generate_provider_string(providers))
+    ws["A4"].value = "Interns present: {}".format(generate_provider_string(persons))
+    ws["A5"].value = "Communication Lead(s): {}".format(generate_provider_string(commleads))
+    ws["A6"].value = "On Site Lead(s): {}".format(generate_provider_string(onsiteleads))
+    ws.merge_cells("A1:E1")
+    ws.merge_cells("A2:E2")
+    ws.merge_cells("A3:H3")
+    ws.merge_cells("A4:H4")
+    ws.merge_cells("A5:H5")
+    ws.merge_cells("A6:H6")
 
 fd = open("data/manifest.json", "r")
 json_data = json.loads(fd.read())
 wb = Workbook()
 
 for site in json_data["sites"]:
-    ws = wb.create_sheet(site["name"])
     providers = []
     for record in site["records"]:
         providers.append(record['submitter'])
 
-    write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(ws.title), ws, providers)
+    persons = site["present"]
+    commleads = site["commleads"]
+    onsiteleads = site["onsiteleads"]
+
+    length = 8
+    ws = wb.create_sheet(site["name"])
+
+    ws.cell(row=length, column=1, value="Combined Totals")
+    length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"]), ws, length) + 2
+
+    ws.cell(row=length, column=1, value="Adults")
+    length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], adultonly=True), ws, length) + 3
+
+    ws.cell(row=length, column=1, value="Children")
+    length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], childonly=True), ws, length) + 3
+
+    adjust_column_width(ws, 4)
+    handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads)
+
 del wb["Sheet"]
 wb.save("test.xlsx")

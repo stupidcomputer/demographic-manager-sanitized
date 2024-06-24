@@ -229,7 +229,15 @@ def generate_final_report_data(ws):
         ["", ""],
         ["Average Children per Site", ""],
         [(total_girls + total_boys) / total_sites, ""],
+        ["", ""],
+        ["Percentages of Relevant Demographics", ""],
+        ["Girls", str(total_girls / total_children * 100)[:5] + "%"],
+        ["Hispanic", str(int(ethnicity_breakdown[0][1]) / total_children * 100)[:5] + "%"],
+        ["People of Color", str(int(race_breakdown[3][1]) / total_children * 100)[:5] + "%"],
     ]
+    print(ethnicity_breakdown)
+    print("aslkdfjalsdkfjalsdkf")
+    print(race_breakdown[2])
 
     for row in final_report_data_to_append:
         ws.append(row)

@@ -1,5 +1,6 @@
 import json
 import common
+import interndata
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
@@ -17,14 +18,20 @@ def mapper(string):
     except KeyError:
         return "WARNING: {}".format(string)
 
-def aggregate_demographic_totals(payload, adultonly, childonly):
+def aggregate_demographic_totals(payload, adultonly, childonly, internonly, withoutinterns):
     results = {"age": {}, "gender": {}, "ethnicity": {}, "race": {}}
 
     for i in payload:
-        if adultonly and i["age"] == "c":
+        if adultonly and not i["age"] == "a":
             continue
 
-        if childonly and i["age"] == "a":
+        if childonly and not i["age"] == "c":
+            continue
+
+        if internonly and not i["age"] == "i":
+            continue
+
+        if withoutinterns and i["age"] == "i":
             continue
 
         # for every entry we get
@@ -35,7 +42,7 @@ def aggregate_demographic_totals(payload, adultonly, childonly):
 
     return results
 
-def get_totals_for_specific_attribute_on_specific_site(site, adultonly=False, childonly=False):
+def get_totals_for_specific_attribute_on_specific_site(site, adultonly=False, childonly=False, internonly=False, withoutinterns=False):
     manifest = open("data/manifest.json")
     manifest_data = json.loads(manifest.read())
 
@@ -49,6 +56,13 @@ def get_totals_for_specific_attribute_on_specific_site(site, adultonly=False, ch
         raise TypeError("site argument is not valid")
 
     used_filename = site_object["usedrecord"]
+    if not used_filename: # it's just a placeholder, so we should return no records
+        return {"age": {}, "gender": {}, "ethnicity": {}, "race": {}}
+
+    present_interns = site_object["present"]
+
+    intern_serialized = interndata.get_staff_records()
+    intern_data = interndata.return_intern_data_from_present_array(present_interns, intern_serialized)
 
     site_specific_data_file = open("data/" + used_filename)
 
@@ -56,16 +70,13 @@ def get_totals_for_specific_attribute_on_specific_site(site, adultonly=False, ch
 
     payload = demographic_data_json["payload"]
 
-    return aggregate_demographic_totals(payload, adultonly, childonly)
+    return aggregate_demographic_totals(payload + intern_data, adultonly, childonly, internonly, withoutinterns)
 
 def generate_table_for_attr(attr, totals):
     header = [mapper(attr), "Count"]
     data = []
 
-    print(totals)
-
     for key, value in totals[attr].items():
-        print(key, value)
         data.append([mapper(key), value])
         data.sort()
 
@@ -91,7 +102,10 @@ def generate_provider_string(providers):
         else:
             and_string = ' and {}'.format(used_providers[-1])
         return before_and + and_string
-    return used_providers[0]
+    try:
+        return used_providers[0]
+    except: # there's no documented communications coordinator or whatever
+        return "an Unknown Person"
 
 def handle_writing_of_attrs(worksheet, totals, offset):
     count = 0
@@ -112,8 +126,8 @@ def adjust_column_width(worksheet, times):
 def write_information_to_spreadsheet(totals, worksheet, offset):
     return handle_writing_of_attrs(worksheet, totals, offset)
 
-def handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads):
-    ws["A1"].value = "Information for {} site attendance.".format(ws.title)
+def handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads, time, date):
+    ws["A1"].value = "Information for {} site attendance at {} on {}".format(ws.title, time, date)
     ws["A2"].value = "Fields not present should be assumed 0."
     ws["A3"].value = "Data submitted by {} in person after conclusion of site operations.".format(generate_provider_string(providers))
     ws["A4"].value = "Interns present: {}".format(generate_provider_string(persons))
@@ -131,6 +145,7 @@ json_data = json.loads(fd.read())
 wb = Workbook()
 
 for site in json_data["sites"]:
+    print(site["name"])
     providers = []
     for record in site["records"]:
         providers.append(record['submitter'])
@@ -138,6 +153,8 @@ for site in json_data["sites"]:
     persons = site["present"]
     commleads = site["commleads"]
     onsiteleads = site["onsiteleads"]
+    time = site["time"]
+    date = site["date"]
 
     length = 8
     ws = wb.create_sheet(site["name"])
@@ -146,6 +163,11 @@ for site in json_data["sites"]:
     ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
     ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
     length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"]), ws, length) + 2
+
+    ws.cell(row=length, column=1, value="Combined Totals (without interns)")
+    ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
+    ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
+    length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], withoutinterns=True), ws, length) + 2
 
     ws.cell(row=length, column=1, value="Adults")
     ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
@@ -157,8 +179,13 @@ for site in json_data["sites"]:
     ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
     length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], childonly=True), ws, length) + 3
 
+    ws.cell(row=length, column=1, value="Interns")
+    ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
+    ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
+    length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], internonly=True), ws, length) + 3
+
     adjust_column_width(ws, 4)
-    handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads)
+    handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads, time, date)
 
 del wb["Sheet"]
 wb.save("test.xlsx")

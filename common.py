@@ -41,4 +41,5 @@ mapper_data = {
     "None": "Unknown",
     "nh/opi": "Native Hawaiian/Other Pacific Islander",
     "i": "Intern",
+    "u/o": "Unknown/Other",
 }

@@ -231,7 +231,7 @@ def generate_final_report_data(ws):
         [(total_girls + total_boys) / total_sites, ""],
         ["", ""],
         ["Percentages of Relevant Demographics", ""],
-        ["Girls", str(total_girls / total_children * 100)[:5] + "% + "%""],
+        ["Girls", str(total_girls / total_children * 100)[:5] + "%"],
         ["Hispanic", str(int(ethnicity_breakdown[0][1]) / total_children * 100)[:5] + "%"],
         ["People of Color", str(int(race_breakdown[3][1]) / total_children * 100)[:5] + "%"],
     ]

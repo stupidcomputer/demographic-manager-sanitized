@@ -4,10 +4,16 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
+def convert_x_y_to_col_id(x, y):
+    return get_column_letter(x) + str(y)
+
+def convert_x_y_range_to_cols(x1, y1, x2, y2):
+    return "{}:{}".format(convert_x_y_to_col_id(x1, y1), convert_x_y_to_col_id(x2, y2))
+
 def mapper(string):
     # map to human-readable values
     try:
-        return common.mapper_data[string]
+        return common.mapper_data[str(string)]
     except KeyError:
         return "WARNING: {}".format(string)
 
@@ -53,13 +59,19 @@ def get_totals_for_specific_attribute_on_specific_site(site, adultonly=False, ch
     return aggregate_demographic_totals(payload, adultonly, childonly)
 
 def generate_table_for_attr(attr, totals):
-    dataarray = [[mapper(attr), "Count"]]
+    header = [mapper(attr), "Count"]
+    data = []
+
     print(totals)
+
     for key, value in totals[attr].items():
         print(key, value)
-        dataarray.append([mapper(key), value])
+        data.append([mapper(key), value])
+        data.sort()
 
-    return dataarray
+    data.insert(0, header)
+
+    return data
 
 def write_dataarray_to_specific_cell(x, y, dataarray, worksheet):
     i_c = 0
@@ -71,11 +83,15 @@ def write_dataarray_to_specific_cell(x, y, dataarray, worksheet):
         i_c += 1
 
 def generate_provider_string(providers):
-    if len(providers) > 1:
-        before_and = ', '.join(providers[:-1])
-        and_string = ' and {}'.format(providers[-1])
+    used_providers = sorted(providers)
+    if len(used_providers) > 1:
+        before_and = ', '.join(used_providers[:-1])
+        if len(used_providers) > 2:
+            and_string = ', and {}'.format(used_providers[-1])
+        else:
+            and_string = ' and {}'.format(used_providers[-1])
         return before_and + and_string
-    return providers[0]
+    return used_providers[0]
 
 def handle_writing_of_attrs(worksheet, totals, offset):
     count = 0
@@ -94,7 +110,7 @@ def adjust_column_width(worksheet, times):
         worksheet.column_dimensions[get_column_letter((i * 3) + 1)].width = 20
 
 def write_information_to_spreadsheet(totals, worksheet, offset):
-    return handle_writing_of_attrs(ws, totals, offset)
+    return handle_writing_of_attrs(worksheet, totals, offset)
 
 def handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads):
     ws["A1"].value = "Information for {} site attendance.".format(ws.title)
@@ -127,12 +143,18 @@ for site in json_data["sites"]:
     ws = wb.create_sheet(site["name"])
 
     ws.cell(row=length, column=1, value="Combined Totals")
+    ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
+    ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
     length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"]), ws, length) + 2
 
     ws.cell(row=length, column=1, value="Adults")
+    ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
+    ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
     length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], adultonly=True), ws, length) + 3
 
     ws.cell(row=length, column=1, value="Children")
+    ws.merge_cells(convert_x_y_range_to_cols(1, length, 11, length))
+    ws[convert_x_y_to_col_id(1, length)].font = Font(italic=True)
     length += write_information_to_spreadsheet(get_totals_for_specific_attribute_on_specific_site(site["name"], childonly=True), ws, length) + 3
 
     adjust_column_width(ws, 4)

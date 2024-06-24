@@ -5,6 +5,14 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font
 
+from openpyxl.chart import (
+    PieChart,
+    ProjectedPieChart,
+    Reference
+)
+
+from openpyxl.chart.series import DataPoint
+
 def convert_x_y_to_col_id(x, y):
     return get_column_letter(x) + str(y)
 
@@ -145,6 +153,119 @@ def handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads
     ws.merge_cells("A5:H5")
     ws.merge_cells("A6:H6")
 
+def get_all_data_points_from_all_sites(manifest):
+    files_to_read = []
+    record_objects = []
+    for site in manifest["sites"]:
+        files_to_read.append(site["usedrecord"])
+
+    for file in files_to_read:
+        handle = open("data/" + file, "r")
+        handle_data = json.loads(handle.read())
+
+        payload = handle_data["payload"]
+        record_objects += payload
+
+    return record_objects
+
+def dict_to_2d_array(dictionary, keylambda=lambda x: x):
+    return [(keylambda(k), v) for k, v in dictionary.items()]
+
+def correct_dict_with_none_values(dictionary):
+    try:
+        dictionary["unk"] += dictionary[None]
+        del dictionary[None]
+    except KeyError:
+        pass
+
+    return dictionary
+
+def generate_final_report_data(ws):
+    fd = open("data/manifest.json", "r")
+    manifest = json.loads(fd.read())
+
+    global_data_points = get_all_data_points_from_all_sites(manifest)
+    total_sites = len(manifest["sites"])
+
+    children = []
+    for person in global_data_points:
+        if person["age"] == "c":
+            children.append(person)
+
+    aggregation = aggregate_demographic_totals(global_data_points, False, False, False, False)
+    children_aggregation = aggregate_demographic_totals(children, False, False, False, False)
+
+    total_children = children_aggregation["age"]["c"]
+    total_girls = children_aggregation["gender"]["f"]
+    total_boys = children_aggregation["gender"]["m"]
+    race_breakdown = sorted(dict_to_2d_array(correct_dict_with_none_values(children_aggregation["race"]), mapper))
+    ethnicity_breakdown = sorted(dict_to_2d_array(correct_dict_with_none_values(children_aggregation["ethnicity"]), mapper))
+
+    gender_breakdown = [
+        ["Gender", "Count"],
+        ["Boys", total_boys],
+        ["Girls", total_girls],
+    ]
+
+    race_breakdown.insert(0, ["Race", "Count"])
+
+    final_report_data_to_append = [
+        ["Final Report", ""],
+        ["", ""],
+        ["Gender Breakdown", ""],
+        *gender_breakdown,
+        ["", ""],
+        ["Race Breakdown", ""],
+        *race_breakdown,
+        ["", ""],
+        ["Ethnicity Breakdown", ""],
+        *ethnicity_breakdown,
+        ["", ""],
+        ["Total Children Served", ""],
+        [total_girls + total_boys, ""],
+        ["", ""],
+        ["Number of Sites", ""],
+        [total_sites, ""],
+        ["", ""],
+        ["Average Children per Site", ""],
+        [(total_girls + total_boys) / total_sites, ""],
+    ]
+
+    for row in final_report_data_to_append:
+        ws.append(row)
+
+    gender_pie = PieChart()
+    data = Reference(ws, min_col=2, min_row=5, max_row=5 + len(gender_breakdown) - 2)
+    labels = Reference(ws, min_col=1, min_row=5, max_row=5 + len(gender_breakdown) - 2)
+    gender_pie.add_data(data)
+    gender_pie.set_categories(labels)
+    gender_pie.title = "Gender Breakdown"
+    ws.add_chart(gender_pie, "D1")
+
+    race_pie = PieChart()
+    data = Reference(ws, min_col=2, min_row=5 + len(gender_breakdown) + 2, max_row=5 + len(gender_breakdown) + len(race_breakdown))
+    labels = Reference(ws, min_col=1, min_row=5 + len(gender_breakdown) + 2, max_row=5 + len(gender_breakdown) + len(race_breakdown))
+    race_pie.add_data(data)
+    race_pie.set_categories(labels)
+    race_pie.title = "Race Breakdown"
+    ws.add_chart(race_pie, "D17")
+
+    ethnicity_pie = PieChart()
+    data = Reference(ws, min_col=2, min_row=18, max_row=19)
+    labels = Reference(ws, min_col=1, min_row=18, max_row=19)
+    ethnicity_pie.add_data(data)
+    ethnicity_pie.set_categories(labels)
+    ethnicity_pie.title = "Ethnicity Breakdown"
+    ws.add_chart(ethnicity_pie, "D33")
+
+    ws.column_dimensions["A"].width = 27
+
+    print(children_aggregation)
+    print(total_children, total_girls, total_boys)
+    print(race_breakdown)
+    print(final_report_data_to_append)
+
+
 fd = open("data/manifest.json", "r")
 json_data = json.loads(fd.read())
 wb = Workbook()
@@ -191,6 +312,10 @@ for site in json_data["sites"]:
 
     adjust_column_width(ws, 4)
     handle_spreadsheet_decoration(ws, providers, persons, commleads, onsiteleads, time, date)
+
+ws = wb.create_sheet("Final Report")
+
+generate_final_report_data(ws)
 
 del wb["Sheet"]
 wb.save("test.xlsx")

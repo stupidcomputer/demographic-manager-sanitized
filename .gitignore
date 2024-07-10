@@ -2,3 +2,6 @@ __pycache__/
 venv/
 test.xlsx
 .~lock.test.xlsx#
+interns.tsv
+sites.tsv
+demographic_data.tsv
